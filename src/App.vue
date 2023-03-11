@@ -4,11 +4,13 @@
     <br/>
     <br/>
     <span>当前标题名称: {{ this.current_title }}</span>
+    <br/>
+    <span>当前最大投票数量: {{ this.scoreLimit }}</span>
     <a-divider>评分区</a-divider>
     <a-button type="primary" @click="queryResultByTrack">
       刷新数据
     </a-button>
-    <a-table :data-source="tableData" :columns="columns">
+    <a-table :data-source="tableData" :pagination=false :bordered=true :columns="columns">
       <div
           slot="filterDropdown"
           slot-scope="{ setSelectedKeys, selectedKeys, confirm, clearFilters, column }"
@@ -61,7 +63,22 @@
           {{ text }}
         </template>
       </template>
+      <!--      操作区-->
+      <template slot="operation" slot-scope="text, record,index">
+        <a-button type="primary" :disabled=vote_button_disabled @click="vote(index)">投票</a-button>
+      </template>
     </a-table>
+    <br/>
+    <a-button type="primary" @click="showModal" :loading=btn_loading>提交投票</a-button>
+    <a-modal
+        title="确认提交？"
+        :visible="confirmVisible"
+        :confirm-loading="confirmLoading"
+        @ok="handleOk"
+        @cancel="handleCancel"
+    >
+      <p>{{ ModalText }}</p>
+    </a-modal>
   </div>
 </template>
 
@@ -71,12 +88,24 @@ import Axios from "axios";
 export default {
   data() {
     return {
+      ModalText: '提交后无法修改',
+      confirmVisible: false,
+      confirmLoading: false,
+
+      btn_loading: false,
+      pageSize: 500,
+
+      vote_button_disabled: false,
+
       current_title: "",
+      scoreLimit: 0,
 
       tableData: [],
       searchText: '',
       searchInput: null,
       searchedColumn: '',
+
+      resultData: "",
       columns: [
         {
           title: '名字  ',
@@ -101,7 +130,7 @@ export default {
           },
         },
         {
-          title: '得分',
+          title: '是否投票',
           dataIndex: 'score',
           key: 'score',
           scopedSlots: {
@@ -143,13 +172,101 @@ export default {
               });
             }
           },
-        }]
+        },
+        {
+          title: '操作',
+          dataIndex: 'operation',
+          key: 'operation',
+          scopedSlots: {customRender: 'operation'},
+        },
+      ]
     }
   },
   created() {
     this.init();
   },
+  mounted() {
+    this.getVote();
+  },
   methods: {
+    //获取当前投票值
+    async getVote() {
+      //组装参数
+      let requestParam = new FormData()
+      requestParam.append("vote_id", "vote_number")
+      await Axios.request({
+        method: 'GET',
+        url: 'http://49.235.113.96:8099/rank_page/front/get_vote_number?vote_id=vote_number',
+        data: requestParam,
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      }).then(res => {
+        console.log('vote_limit=>', res.data.data);
+        this.scoreLimit = res.data.data
+      })
+    },
+    //警告框
+    showModal() {
+      this.confirmVisible = true;
+    },
+    handleOk(e) {
+      this.ModalText = '提交后无法修改';
+      this.confirmLoading = true;
+      this.submitResult();
+      this.confirmVisible = false;
+      this.confirmLoading = false;
+    },
+    handleCancel(e) {
+      console.log('Clicked cancel button');
+      this.confirmVisible = false;
+    },
+    //提交投票
+    async submitResult() {
+      this.btn_loading = true
+      this.resultData = this.tableData
+      await Axios.request({
+        method: 'POST',
+        url: "http://49.235.113.96:8099/rank_page/front/set_people_score",
+        data: this.resultData,
+      }).then(res => {
+        console.log('res.data=>', res.data.data);
+        if (res.data.status == 200) {
+          this.$notification.success({
+            message: "提交成功！",
+            description: res.data.msg
+          })
+        } else {
+          this.$notification.success({
+            message: "提交失败！请刷新页面重新填写！",
+            description: res.data.msg
+          })
+        }
+        this.btn_loading = false
+        this.init();
+      })
+    },
+    //投票
+    vote(value) {
+      console.log("投票成功!操作行：" + value)
+      if (this.tableData[value].score == 0) {
+        this.tableData[value].score += 1;
+      } else {
+        this.tableData[value].score = 0;
+      }
+      let sumScore = 0;
+      for (let i = 0; i < this.tableData.length; i++) {
+        if (this.tableData[i].score > 0) {
+          sumScore++;
+          if (sumScore === this.scoreLimit) {
+            this.vote_button_disabled = true;
+          }
+        }
+      }
+      this.$message.success('投票成功，当前剩余：' + (this.scoreLimit - sumScore) + '票');
+      console.log(this.tableData)
+    }
+    ,
     //数据查询
     async queryResultByTrack() {
       const formData = new FormData();
@@ -163,27 +280,30 @@ export default {
       }).then(res => {
         console.log("str: " + str)
         this.tableData = res.data.data
-        console.log(res.data)
+        console.log(res.data.data)
         //结果集处理
         if (res.data.status != 200) {
           this.$message.error('查询失败！');
-        }else {
+        } else {
           this.$message.success("查询成功！")
         }
       })
-    },
+    }
+    ,
 
     //表格方法
     handleSearch(selectedKeys, confirm, dataIndex) {
       confirm();
       this.searchText = selectedKeys[0];
       this.searchedColumn = dataIndex;
-    },
+    }
+    ,
 
     handleReset(clearFilters) {
       clearFilters();
       this.searchText = '';
-    },
+    }
+    ,
 
     //初始化查询标题
     async init() {
