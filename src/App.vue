@@ -7,9 +7,18 @@
     <br/>
     <span>当前最大投票数量: {{ this.scoreLimit }}</span>
     <a-divider>评分区</a-divider>
-    <a-button type="primary" @click="queryResultByTrack">
-      刷新数据
-    </a-button>
+    (0为未投，1为已投；对已投票的行点击投票会取消其投票)
+    <br>
+    <a-input-search
+        placeholder="请输入所查询的赛道名"
+        enter-button="查询"
+        style="width: 400px"
+        @search="queryResultByTrack"
+    />
+    <!--    旧版锁定功能-->
+    <!--    <a-button type="primary" @click="queryResultByTrack">-->
+    <!--      刷新数据-->
+    <!--    </a-button>-->
     <a-table :data-source="tableData" :pagination=false :bordered=true :columns="columns">
       <div
           slot="filterDropdown"
@@ -221,6 +230,7 @@ export default {
       console.log('Clicked cancel button');
       this.confirmVisible = false;
     },
+
     //提交投票
     async submitResult() {
       this.btn_loading = true
@@ -234,8 +244,11 @@ export default {
         if (res.data.status == 200) {
           this.$notification.success({
             message: "提交成功！",
-            description: res.data.msg
+            description: res.data.msg + "接下来将自动刷新页面，请勿操作！"
           })
+          window.setTimeout(function () {
+            window.location.reload();
+          },2000)
         } else {
           this.$notification.success({
             message: "提交失败！请刷新页面重新填写！",
@@ -265,32 +278,52 @@ export default {
       }
       this.$message.success('投票成功，当前剩余：' + (this.scoreLimit - sumScore) + '票');
       console.log(this.tableData)
-    }
-    ,
-    //数据查询
-    async queryResultByTrack() {
-      const formData = new FormData();
-      console.log(this.current_title);
-      var str = this.current_title;
-      formData.append('track', str)
-      await Axios.request({
-        url: "http://49.235.113.96:8099/rank_page/front/get_people_by_track",
-        method: 'POST',
-        data: formData,
-      }).then(res => {
-        console.log("str: " + str)
-        this.tableData = res.data.data
-        console.log(res.data.data)
-        //结果集处理
-        if (res.data.status != 200) {
-          this.$message.error('查询失败！');
-        } else {
-          this.$message.success("查询成功！")
-        }
-      })
-    }
-    ,
-
+    },
+    //结果查询
+    async queryResultByTrack(value) {
+      if (value == '' || value == ' ') {
+        this.$message.error("请填写赛道名");
+      } else {
+        const formData = new FormData();
+        formData.append('track', value.trim())
+        await Axios.request({
+          url: "http://49.235.113.96:8099/rank_page/front/get_people_by_track",
+          method: 'POST',
+          data: formData,
+        }).then(res => {
+          this.tableData = res.data.data
+          console.log(res.data)
+          //结果集处理
+          if (res.data.status != 200) {
+            this.$message.error('查询失败！');
+          } else {
+            this.$message.success('查询成功！');
+          }
+        })
+      }
+    },
+    // //数据查询
+    // async queryResultByTrack() {
+    //   const formData = new FormData();
+    //   console.log(this.current_title);
+    //   var str = this.current_title;
+    //   formData.append('track', str)
+    //   await Axios.request({
+    //     url: "http://49.235.113.96:8099/rank_page/front/get_people_by_track",
+    //     method: 'POST',
+    //     data: formData,
+    //   }).then(res => {
+    //     console.log("str: " + str)
+    //     this.tableData = res.data.data
+    //     console.log(res.data.data)
+    //     //结果集处理
+    //     if (res.data.status != 200) {
+    //       this.$message.error('查询失败！');
+    //     } else {
+    //       this.$message.success("查询成功！")
+    //     }
+    //   })
+    // },
     //表格方法
     handleSearch(selectedKeys, confirm, dataIndex) {
       confirm();
