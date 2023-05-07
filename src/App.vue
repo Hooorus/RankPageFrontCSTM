@@ -9,12 +9,20 @@
     <a-divider>评分区</a-divider>
     (0为未投，1为已投；对已投票的行点击投票会取消其投票)
     <br>
-    <a-input-search
-        placeholder="请输入所查询的赛道名"
-        enter-button="查询"
-        style="width: 400px"
-        @search="queryResultByTrack"
-    />
+<!--    <a-input-search-->
+<!--        placeholder="请输入所查询的赛道名"-->
+<!--        enter-button="查询"-->
+<!--        style="width: 400px"-->
+<!--        @search="queryResultByTrack"-->
+<!--    />-->
+    <br/>
+    <a-select :option="track_options" @change="queryResultByTrack" size="large" style="width: 300px"
+              placeholder="请选择需要评分的赛道">
+      <a-select-option :key="item.id" v-for="item in track_options" :value="item.trackName">
+        {{ item.trackName }}
+      </a-select-option>
+    </a-select>
+    <br/>
     <!--    旧版锁定功能-->
     <!--    <a-button type="primary" @click="queryResultByTrack">-->
     <!--      刷新数据-->
@@ -93,10 +101,13 @@
 
 <script>
 import Axios from "axios";
+import api from "@/api/index"
 
 export default {
   data() {
     return {
+      track_options: [],
+
       ModalText: '提交后无法修改',
       confirmVisible: false,
       confirmLoading: false,
@@ -205,7 +216,7 @@ export default {
       requestParam.append("vote_id", "vote_number")
       await Axios.request({
         method: 'GET',
-        url: 'http://49.235.113.96:8099/rank_page/front/get_vote_number?vote_id=vote_number',
+        url: api.prefixURL + api.frontURL + api.getVoteNumber,
         data: requestParam,
         headers: {
           "Content-Type": "multipart/form-data"
@@ -237,7 +248,7 @@ export default {
       this.resultData = this.tableData
       await Axios.request({
         method: 'POST',
-        url: "http://49.235.113.96:8099/rank_page/front/set_people_score",
+        url: api.prefixURL + api.frontURL + api.setPeopleScore,
         data: this.resultData,
       }).then(res => {
         console.log('res.data=>', res.data.data);
@@ -248,7 +259,7 @@ export default {
           })
           window.setTimeout(function () {
             window.location.reload();
-          },2000)
+          }, 2000)
         } else {
           this.$notification.success({
             message: "提交失败！请刷新页面重新填写！",
@@ -287,7 +298,7 @@ export default {
         const formData = new FormData();
         formData.append('track', value.trim())
         await Axios.request({
-          url: "http://49.235.113.96:8099/rank_page/front/get_people_by_track",
+          url: api.prefixURL + api.frontURL + api.getPeopleByTrack,
           method: 'POST',
           data: formData,
         }).then(res => {
@@ -329,14 +340,12 @@ export default {
       confirm();
       this.searchText = selectedKeys[0];
       this.searchedColumn = dataIndex;
-    }
-    ,
+    },
 
     handleReset(clearFilters) {
       clearFilters();
       this.searchText = '';
-    }
-    ,
+    },
 
     //初始化查询标题
     async init() {
@@ -345,7 +354,7 @@ export default {
       requestParam.append("title_id", "title_name")
       await Axios.request({
         method: 'GET',
-        url: 'http://49.235.113.96:8099/rank_page/front/get_title_name?title_id=title_name',
+        url: api.prefixURL + api.frontURL + api.getTitleName,
         data: requestParam,
         headers: {
           "Content-Type": "multipart/form-data"
@@ -353,6 +362,19 @@ export default {
       }).then(res => {
         console.log('res.data=>', res.data.data);
         this.current_title = res.data.data
+      });
+
+      //查询赛道
+      await Axios.request({
+        method: "POST",
+        url: api.prefixURL + api.frontURL + api.getTrackAll,
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      }).then(res => {
+        console.log("track.data=> ", res.data.data);
+        this.track_options = res.data.data;
+        console.log("track_options=> ", this.track_options)
       })
     },
   }
